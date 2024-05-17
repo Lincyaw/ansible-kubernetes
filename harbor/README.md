@@ -1,0 +1,1 @@
+ansible-playbook -i hosts configure_harbor_client.yaml

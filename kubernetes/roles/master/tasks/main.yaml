@@ -54,6 +54,12 @@
     dest: /root/.kube/config
     remote_src: yes
 
+    
+- name: Pause for manual service check
+  pause:
+    prompt: "Please check if the services are running correctly. Press 'Enter' to continue after verification."
+
+
 - name: Install Calico Operator
   shell: kubectl create -f {{ calico_operator }}
 
@@ -62,7 +68,7 @@
 
 - name: Update cidr
   lineinfile:
-    path: /root/kubeadm-config.yaml
+    path: /root/custom-resources.yaml
     regexp: '      cidr: 192.168.0.0/16'
     line: '      cidr: 10.244.0.0/16'
 
@@ -77,6 +83,7 @@
   shell: "openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //' "
   register: ca_hash_output
 
+# sudo kubeadm join 10.10.10.220:6443 --token abcdef.0123456789abcdef --discovery-token-ca-cert-hash sha256:09c50f602679f9d0211d8485d8b244169cd8296243d5c722bfb6a4a47c390e8b
 - name: Generate join command
   set_fact:
     join_command: "kubeadm join {{ ansible_host }}:6443 --token {{ token_output.stdout }} --discovery-token-ca-cert-hash sha256:{{ ca_hash_output.stdout }}"

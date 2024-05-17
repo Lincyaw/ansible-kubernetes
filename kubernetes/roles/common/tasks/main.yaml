@@ -1,4 +1,16 @@
 ---
+- name: Ensure /usr/sbin is in the PATH for all users
+  lineinfile:
+    path: /etc/profile
+    regexp: '^PATH='
+    line: 'PATH=$PATH:/usr/sbin'
+    state: present
+
+- name: Source /etc/profile to update PATH
+  shell: source /etc/profile
+  args:
+    executable: /bin/bash
+  
 # 1.3.1 主机名配置
 - name: Set hostname
   hostname:
@@ -171,14 +183,17 @@
   args:
     creates: /etc/containerd/config.toml
 
-- name: Modify containerd configuration
-  lineinfile:
-    path: /etc/containerd/config.toml
-    regexp: "{{ item.regexp }}"
-    line: "{{ item.line }}"
-  with_items:
-    - { regexp: '^sandbox_image = .+', line: 'sandbox_image = "registry.k8s.io/pause:3.9"' }
-    - { regexp: '^SystemdCgroup = .+', line: 'SystemdCgroup = true' }
+- name: Modify containerd sandbox_image
+  replace:
+    path: ./config.toml
+    regexp: '^\s*sandbox_image\s*=\s*".*"\s*$'
+    replace: '  sandbox_image = "registry.k8s.io/pause:3.9"'
+  
+- name: Modify containerd SystemdCgroup
+  replace:
+    path: ./config.toml
+    regexp: '^  SystemdCgroup = .+'
+    replace: '  SystemdCgroup = true'
 
 # 2.3 Containerd启动及开机自启动
 - name: Enable and start containerd
@@ -218,6 +233,11 @@
       - kubectl
       - wget
       - curl
+      - ebtables 
+      - ethtool 
+      - iproute2 
+      - conntrack 
+      - iptables
     state: present
 
 - name: Hold Kubernetes packages

@@ -1,0 +1,41 @@
+---
+- name: Configure Harbor client
+  hosts: all
+  become: yes
+  vars:
+    harbor_server: "{{ harbor_server }}"
+    harbor_user: "{{ harbor_user }}"
+    harbor_cert_remote_path: "{{ harbor_cert_remote_path }}"
+    harbor_cert_local_path: "{{ harbor_cert_local_path }}"
+    harbor_cert_name: "{{ harbor_cert_name }}"
+    ca_cert_path: "/usr/local/share/ca-certificates"
+  tasks:
+    - name: Create directory for Harbor certificates
+      file:
+        path: "{{ harbor_cert_local_path }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy Harbor certificate from remote server
+      ansible.builtin.command: scp "{{ harbor_user }}@{{ harbor_server }}:{{ harbor_cert_remote_path }} {{ harbor_cert_local_path }}/{{ harbor_cert_name }}"
+      vars:
+        ansible_ssh_pass: "{{ ansible_ssh_pass }}"
+
+    - name: Restart containerd service
+      systemd:
+        name: containerd
+        state: restarted
+
+    - name: Copy Harbor certificate to CA certificates directory
+      copy:
+        src: "{{ harbor_cert_local_path }}/{{ harbor_cert_name }}"
+        dest: "{{ ca_cert_path }}/{{ harbor_cert_name }}"
+        mode: '0644'
+
+    - name: Update CA certificates
+      command: update-ca-certificates
+      register: update_ca_cert_result
+
+    - name: Debug update-ca-certificates output
+      debug:
+        var: update_ca_cert_result
