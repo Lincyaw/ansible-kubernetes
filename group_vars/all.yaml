@@ -1,0 +1,28 @@
+# group_vars/all.yml
+
+# basic env
+gateway: "10.10.10.4"
+dns: "" # 自建 dns 地址
+node_peers:
+  - ip: 10.10.10.220
+    hostname: master1
+  - ip: 10.10.10.221
+    hostname: worker1
+  - ip: 10.10.10.222
+    hostname: worker2
+  - ip: 10.10.10.223
+    hostname: worker3
+
+
+# containerd https://github.com/containerd/containerd/releases/download/v1.7.5/cri-containerd-1.7.5-linux-amd64.tar.gz
+containerd_version: "1.7.5"
+containerd_filename: "cri-containerd-{{ containerd_version }}-linux-amd64.tar.gz"
+containerd_url: "https://github.com/containerd/containerd/releases/download/v{{ containerd_version }}/{{ containerd_filename }}"
+containerd_dest: "/tmp/{{ containerd_filename }}"
+containerd_extract_dest: "/"
+
+k8s_apt_key: "https://mirrors.aliyun.com/kubernetes-new/core/stable/v1.29/deb/Release.key"
+k8s_apt_repo: "https://mirrors.aliyun.com/kubernetes-new/core/stable/v1.29/deb/"
+
+calico_operator: "https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/tigera-operator.yaml"
+calico_custom_resources: "https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/custom-resources.yaml"

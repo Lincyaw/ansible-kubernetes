@@ -18,9 +18,9 @@
               - "{{ ansible_host }}/24"
             routes:
               - to: default
-                via: 10.10.10.4
+                via: "{{ gateway }}"
             nameservers:
-              addresses: [119.29.29.29, 114.114.114.114, 8.8.8.8]
+              addresses: [119.29.29.29, 114.114.114.114, 8.8.8.8, {{ dns }}]
   notify: Apply network configuration
   when: ansible_distribution == 'Ubuntu'
 
@@ -47,8 +47,8 @@
       iface ens18 inet static
         address {{ ansible_host }}
         netmask 255.255.255.0
-        gateway 10.10.10.4
-        dns-nameservers 119.29.29.29 114.114.114.114 8.8.8.8
+        gateway {{ gateway }}
+        dns-nameservers {{ dns }} 119.29.29.29 114.114.114.114 8.8.8.8 
   notify: Restart networking
   when: ansible_distribution == 'Debian'
 
@@ -56,12 +56,9 @@
 - name: Add host entries
   lineinfile:
     path: /etc/hosts
-    line: "{{ item }}"
+    line: "{{ item.ip }} {{ item.hostname }}"
     state: present
-  with_items:
-    - "10.10.10.220 master"
-    - "10.10.10.221 worker1"
-    - "10.10.10.222 worker2"
+  with_items: "{{ node_peers }}"
 
 # 1.3.4 时间同步配置
 - name: Set timezone to Asia/Shanghai
@@ -101,10 +98,10 @@
       net.bridge.bridge-nf-call-ip6tables = 1
       net.bridge.bridge-nf-call-iptables = 1
       net.ipv4.ip_forward = 1
-  notify: Apply sysctl parameters
 
-
-
+- name: Apply sysctl parameters
+  command: sysctl --system
+  
 # 1.3.6 安装ipset及ipvsadm
 - name: Install ipset and ipvsadm
   apt:
@@ -140,3 +137,92 @@
     path: /etc/fstab
     regexp: '^\s*([^#\n]+?\s+?swap\s+?[^#\n]+?[\n#])'
     replace: '#\1'
+
+
+# 二、K8S集群容器运行时 Containerd准备
+# 2.1 Containerd部署文件获取
+- name: Check if containerd tarball exists
+  stat:
+    path: "{{ containerd_dest }}"
+  register: containerd_tarball
+
+- name: Download containerd
+  get_url:
+    url: "{{ containerd_url }}"
+    dest: "{{ containerd_dest }}"
+  when: not containerd_tarball.stat.exists
+
+- name: Extract containerd
+  unarchive:
+    src: "{{ containerd_dest }}"
+    dest: "{{ containerd_extract_dest }}"
+    remote_src: yes
+  when: not containerd_tarball.stat.exists
+
+# 2.2 Containerd配置文件生成并修改
+- name: Create containerd configuration directory
+  file:
+    path: /etc/containerd
+    state: directory
+
+- name: Generate default containerd configuration
+  shell: containerd config default > /etc/containerd/config.toml
+  register: containerd_config
+  args:
+    creates: /etc/containerd/config.toml
+
+- name: Modify containerd configuration
+  lineinfile:
+    path: /etc/containerd/config.toml
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  with_items:
+    - { regexp: '^sandbox_image = .+', line: 'sandbox_image = "registry.k8s.io/pause:3.9"' }
+    - { regexp: '^SystemdCgroup = .+', line: 'SystemdCgroup = true' }
+
+# 2.3 Containerd启动及开机自启动
+- name: Enable and start containerd
+  systemd:
+    name: containerd
+    enabled: yes
+    state: started
+
+# 三、K8S集群部署
+
+# 3.1 K8S集群软件apt源准备
+- name: Ensure gnupg is installed
+  apt:
+    name: gnupg
+    state: present
+
+- name: Add Kubernetes apt key
+  apt_key:
+    url: "{{ k8s_apt_key }}"
+    state: present
+
+- name: Add Kubernetes apt repository
+  apt_repository:
+    repo: "deb {{ k8s_apt_repo }} /"
+    state: present
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+
+# 3.2 K8S集群软件安装
+- name: Install Kubernetes packages
+  apt:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+      - wget
+      - curl
+    state: present
+
+- name: Hold Kubernetes packages
+  command: apt-mark hold {{ item }}
+  with_items:
+    - kubelet
+    - kubeadm
+    - kubectl

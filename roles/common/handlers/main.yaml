@@ -2,6 +2,3 @@
 # 处理程序（handlers）
 - name: Restart networking
   command: systemctl restart networking
-
-- name: Apply sysctl parameters
-  command: sysctl --system
