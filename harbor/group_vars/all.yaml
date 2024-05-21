@@ -4,5 +4,3 @@ harbor_user: "nn"
 harbor_cert_remote_path: "/home/nn/certs/harbor.lab.pj.crt"
 harbor_cert_local_path: "/etc/containerd/cert.d/harbor.lab.pj"
 harbor_cert_name: "harbor.lab.pj.crt"
-ansible_become_password: "nn" # 替换为实际的sudo密码
-ansible_ssh_pass: "nn" # 替换为实际的SSH密码
